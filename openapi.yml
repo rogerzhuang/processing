@@ -1,0 +1,55 @@
+openapi: 3.0.0
+info:
+  description: This API provides event stats for Smart Cities
+  version: "1.0.0"
+  title: Smart Cities Stats API
+  contact:
+    email: zzhuang7@my.bcit.ca
+paths:
+  /stats:
+    get:
+      summary: Gets the event stats
+      operationId: app.get_stats
+      description: Gets Air Quality and Weather processed statistics
+      responses:
+        '200':
+          description: Successfully returned the statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadingStats'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+components:
+  schemas:
+    ReadingStats:
+      type: object
+      required:
+        - num_air_quality_readings
+        - num_weather_readings
+        - max_pm25_concentration
+        - avg_temperature
+      properties:
+        num_air_quality_readings:
+          type: integer
+          description: Total number of air quality readings
+          example: 500000
+        num_weather_readings:
+          type: integer
+          description: Total number of weather readings
+          example: 500000
+        max_pm25_concentration:
+          type: number
+          description: Maximum PM2.5 concentration recorded
+          example: 150.5
+        avg_temperature:
+          type: number
+          description: Average temperature recorded
+          example: 22.5
