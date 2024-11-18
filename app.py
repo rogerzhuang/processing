@@ -1,25 +1,29 @@
-import connexion
-from connexion import NoContent
-import requests
-import yaml
-import logging
-import logging.config
 import datetime
 import json
-from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+import logging.config
 import os
+
+import connexion
+import requests
+import yaml
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask_cors import CORS
 
-with open('app_config.yml', 'r') as f:
+with open('app_config.yml', 'r', encoding='utf-8') as f:
     app_config = yaml.safe_load(f.read())
 
-with open('log_config.yml', 'r') as f:
+with open('log_config.yml', 'r', encoding='utf-8') as f:
     log_config = yaml.safe_load(f.read())
     logging.config.dictConfig(log_config)
 
 logger = logging.getLogger('basicLogger')
 
+"""Processing service that provides statistics about air quality and weather readings."""
+
 def get_stats():
+    """Retrieve current statistics about air quality and weather readings.
+    """
     logger.info("Request for statistics received")
     
     if not os.path.exists(app_config['datastore']['filename']):
@@ -38,13 +42,14 @@ def get_stats():
         "last_updated": stats["last_updated"]
     }
     
-    logger.debug(f"Statistics: {response_data}")
+    logger.debug("Statistics: %s", response_data)
     
     logger.info("Request for statistics completed")
     
     return response_data, 200
 
 def populate_stats():
+    """Update statistics by fetching new events from the event store."""
     logger.info("Start Periodic Processing")
     
     if os.path.exists(app_config['datastore']['filename']):
@@ -63,40 +68,46 @@ def populate_stats():
     last_updated = stats['last_updated']
     
     air_quality_response = requests.get(
-        f"{app_config['eventstore']['url']}/air-quality?start_timestamp={last_updated}&end_timestamp={current_timestamp}")
+        f"{app_config['eventstore']['url']}/air-quality?start_timestamp={last_updated}&end_timestamp={current_timestamp}",
+        timeout=5)
     weather_response = requests.get(
-        f"{app_config['eventstore']['url']}/weather?start_timestamp={last_updated}&end_timestamp={current_timestamp}")
+        f"{app_config['eventstore']['url']}/weather?start_timestamp={last_updated}&end_timestamp={current_timestamp}",
+        timeout=5)
     
     if air_quality_response.status_code == 200:
         air_quality_events = air_quality_response.json()
-        logger.info(f"Received {len(air_quality_events)} air quality events")
+        logger.info("Received %d air quality events", len(air_quality_events))
         stats['num_air_quality_readings'] += len(air_quality_events)
         for event in air_quality_events:
             if event['pm2_5_concentration'] > stats['max_pm25_concentration']:
                 stats['max_pm25_concentration'] = event['pm2_5_concentration']
     else:
-        logger.error(f"Failed to get air quality events with status {air_quality_response.status_code}")
+        logger.error("Failed to get air quality events with status %d", air_quality_response.status_code)
     
     if weather_response.status_code == 200:
         weather_events = weather_response.json()
-        logger.info(f"Received {len(weather_events)} weather events")
+        logger.info("Received %d weather events", len(weather_events))
         stats['num_weather_readings'] += len(weather_events)
         if weather_events:
             total_temp = sum(event['temperature'] for event in weather_events)
             avg_temp = total_temp / len(weather_events)
-            stats['avg_temperature'] = (stats['avg_temperature'] * (stats['num_weather_readings'] - len(weather_events)) + avg_temp * len(weather_events)) / stats['num_weather_readings']
+            stats['avg_temperature'] = (
+                stats['avg_temperature'] * (stats['num_weather_readings'] - len(weather_events)) + 
+                avg_temp * len(weather_events)
+            ) / stats['num_weather_readings']
     else:
-        logger.error(f"Failed to get weather events with status {weather_response.status_code}")
+        logger.error("Failed to get weather events with status %d", weather_response.status_code)
     
     stats['last_updated'] = current_timestamp
     
     with open(app_config['datastore']['filename'], 'w') as f:
         json.dump(stats, f)
     
-    logger.debug(f"Updated statistics: {stats}")
+    logger.debug("Updated statistics: %s", stats)
     logger.info("Periodic Processing Ended")
 
 def init_scheduler():
+    """Initialize the background scheduler for periodic statistics updates."""
     sched = BackgroundScheduler(daemon=True)
     sched.add_job(populate_stats, 
                   'interval', 
