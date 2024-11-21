@@ -50,7 +50,6 @@ def get_stats():
 
 def populate_stats():
     """Update statistics by fetching new events from the event store."""
-    logger.info("DEMO!!! ")
     logger.info("Start Periodic Processing")
     
     if os.path.exists(app_config['datastore']['filename']):
